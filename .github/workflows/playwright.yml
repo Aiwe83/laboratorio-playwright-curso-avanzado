@@ -6,7 +6,9 @@ on:
 
 jobs:
   pruebas:
-    runs-on: ubuntu-latest
+    # Se fija una versión compatible con la versión de Playwright del laboratorio.
+    # "ubuntu-latest" puede cambiar automáticamente a una versión no compatible.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
