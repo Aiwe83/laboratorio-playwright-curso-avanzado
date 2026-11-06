@@ -1,0 +1,8 @@
+node_modules/
+playwright-report/
+playwright-report-retry/
+test-results/
+blob-report/
+playwright/.auth/
+.cdp-profile/
+
