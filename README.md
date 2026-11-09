@@ -113,7 +113,7 @@ npm test
 
 El archivo `playwright/.auth/admin.json` está ignorado por Git porque un estado de autenticación real puede contener información sensible. No lo subas al repositorio.
 
-**Esperamos ver:** `7 passed`. Una prueba corresponde al proyecto `setup` y las demás reutilizan la sesión guardada.
+**Esperamos ver:** `10 passed`. Una prueba corresponde al proyecto `setup` y las demás reutilizan la sesión guardada. Tres de ellas resuelven los ejercicios finales; antes de añadirlas la suite tenía `7 passed`.
 
 ## Paso 5 Practicar CSS y XPath
 
@@ -444,14 +444,248 @@ El caso didáctico `@retry-demo` está excluido de esta comprobación y solo se 
 
 ## Ejercicios finales
 
-Realiza cada ejercicio en orden. Después de cada uno, ejecuta la prueba afectada y guarda el archivo antes de seguir.
+Realiza cada ejercicio en orden. Después de cada uno, guarda el archivo (`Ctrl+S`) y ejecuta la prueba afectada antes de seguir. Intenta cada ejercicio por tu cuenta; la solución está oculta al final de cada uno y ya está aplicada en el proyecto, así que puedes comparar tu versión con la de referencia.
 
-1. **Nueva persona.** Abre `data/personas.ts`, añade una persona con perfil `Desarrollo` y un correo ficticio que no esté repetido. Ejecuta `npm run test:regression` y confirma que aparece un caso nuevo.
-2. **Cerrar sesión.** Crea una prueba con la etiqueta `@smoke` que inicie sesión, pulse el botón de cierre de sesión y compruebe que vuelve a aparecer el formulario de acceso. Ejecuta `npm run test:smoke`.
-3. **Búsqueda.** Crea una prueba que registre o utilice una persona cuyo nombre contenga `Producto`, escriba ese texto en el buscador y compruebe que la tabla muestra una sola fila.
-4. **Evidencia de fallo.** Cambia temporalmente una expectativa correcta para provocar un fallo. Ejecuta la prueba, abre `npm run test:report` y localiza el *screenshot* o el *trace*. Deshaz después el cambio temporal.
-5. **Integración continua.** Ejecuta el workflow en GitHub Actions siguiendo el Paso 13 o el pipeline de Jenkins siguiendo el Paso 14. Conserva el enlace de la ejecución o el artefacto descargado como evidencia.
-6. **CDP.** Completa el Paso 12 y explica con tus palabras: Playwright no abre otra ventana en la tercera terminal, sino que se conecta al Chromium que ya estaba abierto en la segunda terminal mediante el puerto `9222`.
+### Ejercicio 1. Nueva persona
+
+**Objetivo:** comprobar que añadir datos a `data/personas.ts` genera un caso nuevo sin tocar el test.
+
+#### Resultado que buscamos
+
+```text
+registra a Diego Desarrollo
+```
+
+aparece como un caso más en `npm run test:regression`.
+
+#### Pasos
+
+1. Abre `data/personas.ts`.
+2. Al final del array `personas`, añade una línea con perfil `Desarrollo` y un correo ficticio terminado en `@example.test` que no exista ya.
+3. Guarda el archivo.
+4. Ejecuta `npm run test:regression`.
+
+#### Comprobar el resultado
+
+Esperamos ver un caso nuevo con el nombre de tu persona y:
+
+```text
+7 passed
+```
+
+(6 escenarios de regresión más el `setup` de la sesión). Si escribes mal el perfil, por ejemplo `Desarollo`, TypeScript lo marca en rojo: el tipo `Persona` solo admite `'QA' | 'Desarrollo' | 'Producto'`.
+
+<details>
+<summary>💡 Ver la solución</summary>
+
+```typescript
+{ name: 'Diego Desarrollo', email: 'diego.desarrollo@example.test', role: 'Desarrollo', active: true },
+```
+
+</details>
+
+### Ejercicio 2. Cerrar sesión
+
+**Objetivo:** probar el ciclo completo de acceso: iniciar sesión, cerrarla y volver al formulario.
+
+#### Resultado que buscamos
+
+Un test `@smoke` que termina con el botón **Iniciar sesión** visible y sin el título **Administración de personas**.
+
+#### Pasos
+
+1. Crea el archivo `tests/smoke/cerrar-sesion.spec.ts`.
+2. Importa `test` y `expect` desde `@playwright/test`.
+3. Haz que el test empiece **sin** sesión. Pista: el proyecto `chromium` carga `playwright/.auth/admin.json`; busca cómo vaciar `storageState` con `test.use`.
+4. Navega a `/`, rellena **Usuario** y **Contraseña** con `admin` / `playwright` y pulsa **Iniciar sesión**.
+5. Pulsa **Cerrar sesión** con `getByRole('button', { name: 'Cerrar sesión', exact: true })`.
+6. Comprueba con `expect` web-first que vuelve a verse **Iniciar sesión**.
+7. Ejecuta `npm run test:smoke`.
+
+#### Comprobar el resultado
+
+```text
+4 passed
+```
+
+(3 controles smoke más el `setup`). Cerrar sesión en este test no rompe los demás: cada test recibe un contexto nuevo con su propio `localStorage`.
+
+<details>
+<summary>💡 Ver la solución</summary>
+
+```typescript
+import { expect, test } from '@playwright/test';
+
+test.use({ storageState: { cookies: [], origins: [] } });
+
+test('@smoke inicia y cierra sesión', async ({ page }) => {
+  await page.goto('/');
+
+  await test.step('Iniciar sesión', async () => {
+    await page.getByLabel('Usuario', { exact: true }).fill('admin');
+    await page.getByLabel('Contraseña', { exact: true }).fill('playwright');
+    await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Administración de personas', exact: true })).toBeVisible();
+  });
+
+  await test.step('Cerrar sesión y volver al acceso', async () => {
+    await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Iniciar sesión', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Administración de personas', exact: true })).toHaveCount(0);
+  });
+});
+```
+
+Archivo completo: `tests/smoke/cerrar-sesion.spec.ts`.
+
+</details>
+
+### Ejercicio 3. Búsqueda por «Producto»
+
+**Objetivo:** combinar un registro con el buscador y contar filas.
+
+#### Resultado que buscamos
+
+Al escribir `Producto` en **Buscar persona**, la tabla muestra **una sola fila** y es la persona creada en el test.
+
+#### Pasos
+
+1. Crea `tests/regression/busqueda-producto.spec.ts`.
+2. Importa `test` y `expect` desde `../../fixtures/portal.fixture`: así recibes `registroPage` con el portal ya abierto.
+3. Registra una persona cuyo nombre contenga `Producto` con `registroPage.register(...)`.
+4. Comprueba el mensaje `Registro guardado: ...` en `registroPage.status`.
+5. Escribe `Producto` con `registroPage.search.fill(...)`.
+6. Comprueba `toHaveCount(1)` sobre `registroPage.rows` y que la primera fila contiene el nombre.
+7. Ejecuta `npx playwright test busqueda-producto`.
+
+#### Comprobar el resultado
+
+```text
+2 passed
+```
+
+(el test más el `setup`). Los datos iniciales del portal (Ana QA y Luis Dev) no contienen `Producto`, por eso la única coincidencia es la persona del test.
+
+<details>
+<summary>💡 Ver la solución</summary>
+
+```typescript
+import type { Persona } from '../../data/personas';
+import { expect, test } from '../../fixtures/portal.fixture';
+
+const personaProducto: Persona = {
+  name: 'Paula Producto',
+  email: 'paula.producto@example.test',
+  role: 'Producto',
+  active: true,
+};
+
+test('@regression busca una persona de Producto', async ({ registroPage }) => {
+  await test.step('Registrar la persona de Producto', async () => {
+    await registroPage.register(personaProducto);
+    await expect(registroPage.status).toHaveText(`Registro guardado: ${personaProducto.name}.`);
+  });
+
+  await test.step('Buscar "Producto" y comprobar una sola fila', async () => {
+    await registroPage.search.fill('Producto');
+    await expect(registroPage.rows).toHaveCount(1);
+    await expect(registroPage.rows.first()).toContainText(personaProducto.name);
+  });
+});
+```
+
+Archivo completo: `tests/regression/busqueda-producto.spec.ts`.
+
+</details>
+
+### Ejercicio 4. Evidencia de fallo
+
+**Objetivo:** aprender dónde deja Playwright las evidencias cuando algo falla.
+
+#### Resultado que buscamos
+
+Un fallo controlado con su *screenshot*, *trace* y vídeo, y después la prueba de nuevo en verde.
+
+#### Pasos
+
+1. Abre `tests/regression/busqueda-producto.spec.ts`.
+2. Cambia temporalmente `toHaveCount(1)` por `toHaveCount(2)` y guarda.
+3. Ejecuta con un reintento para que también se genere el *trace*:
+
+```powershell
+npx playwright test busqueda-producto --retries=1
+```
+
+4. Abre el informe con `npm run test:report`, entra en el test fallido y revisa las pestañas **Screenshots**, **Traces** y **Videos**.
+5. Restaura `toHaveCount(1)`, guarda y ejecuta otra vez `npx playwright test busqueda-producto`.
+
+#### Comprobar el resultado
+
+Durante el fallo, la terminal muestra:
+
+```text
+Expected: 2
+Received: 1
+```
+
+Y en `test-results/` aparecen:
+
+| Intento | Evidencia | Por qué |
+| --- | --- | --- |
+| Primero | `test-failed-1.png` | `screenshot: 'only-on-failure'` |
+| Reintento (`-retry1`) | `test-failed-1.png`, `trace.zip`, `video.webm` | `trace` y `video` están en `'on-first-retry'` |
+
+Sin `--retries=1` solo verás la captura: en local `retries` es `0`, así que nunca hay «primer reintento». Tras restaurar el cambio, esperamos `2 passed`.
+
+### Ejercicio 5. Integración continua
+
+**Objetivo:** ejecutar la misma suite fuera de tu equipo.
+
+#### Pasos
+
+1. Sube los cambios a GitHub (Paso 13.6).
+2. En Jenkins pulsa **Build with Parameters**, elige `SUITE = completa` y pulsa **Build** (Paso 14.4).
+3. Abre la ejecución y pulsa **Test Result**.
+
+#### Comprobar el resultado
+
+La ejecución termina con `Finished: SUCCESS` y **Test Result** lista los 10 casos (9 pruebas más el `setup`) sin fallos. Guarda como evidencia la URL de la ejecución, por ejemplo `http://127.0.0.1:8080/job/laboratorio-playwright-avanzado/<número>/testReport/`.
+
+### Ejercicio 6. CDP
+
+**Objetivo:** distinguir entre lanzar un navegador nuevo y conectarse a uno existente.
+
+#### Pasos
+
+1. Sigue el Paso 12 con sus tres terminales: `npm start`, `npm run cdp:browser` y `npm run cdp:connect`.
+2. Mira la ventana de Chromium de la segunda terminal mientras se ejecuta la tercera.
+3. Escribe con tus palabras qué ha ocurrido.
+
+#### Comprobar el resultado
+
+La tercera terminal muestra:
+
+```text
+Demostración CDP completada: contacto.cdp.<número>@example.test
+La automatización utilizó el navegador que ya estaba abierto en el puerto 9222.
+```
+
+y el contacto aparece en la tabla de la ventana que **ya estaba abierta**: no se abre ninguna ventana nueva.
+
+<details>
+<summary>💡 Ver una respuesta modelo</summary>
+
+`npm run cdp:browser` abre Chromium con el puerto de depuración `9222`. `npm run cdp:connect` no lanza otro navegador: usa `chromium.connectOverCDP('http://127.0.0.1:9222')`, toma el contexto y la pestaña que ya existen y los controla con Playwright. Por eso el registro se ve en la ventana de la segunda terminal. Al terminar, `browser.close()` cierra solo la conexión del script; el navegador sigue abierto porque lo controla la segunda terminal.
+
+</details>
+
+### Comprobación final de los ejercicios
+
+```powershell
+npm run check
+```
+
+**Esperamos ver:** `10 passed`.
 
 ## Comandos rápidos
 

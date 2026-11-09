@@ -24,5 +24,7 @@ export type Persona = {
 export const personas: Persona[] = [
   { name: 'Marta QA', email: 'marta.qa@example.test', role: 'QA', active: true },
   { name: 'Carlos Producto', email: 'carlos.producto@example.test', role: 'Producto', active: false },
+  // Ejercicio final 1: una entrada más genera automáticamente un caso nuevo.
+  { name: 'Diego Desarrollo', email: 'diego.desarrollo@example.test', role: 'Desarrollo', active: true },
 ];
 
