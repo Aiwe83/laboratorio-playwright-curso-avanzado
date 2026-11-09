@@ -20,6 +20,7 @@ La aplicación es un portal ficticio que se ejecuta únicamente en tu equipo. No
 | Conectarse a un navegador por CDP | `scripts/iniciar-cdp.mjs` y `scripts/conectar-cdp.mjs` |
 | Ejecutar en GitHub Actions | `.github/workflows/playwright.yml` |
 | Parametrizar y programar Jenkins | `Jenkinsfile` |
+| Levantar un Jenkins local con Docker | `infra/jenkins/compose.yaml` y `infra/jenkins/Dockerfile` |
 
 ## Relación con la parte final del curso
 
@@ -354,27 +355,79 @@ El nuevo `push` crea otra ejecución automáticamente. Así puedo comprobar en G
 
 ## Paso 14 Ejecutar en Jenkins
 
-Este paso requiere un servidor Jenkins al que tengas acceso. El `Jenkinsfile` utiliza Docker, por lo que Jenkins debe disponer de Docker y del complemento **Docker Pipeline**. Si no tienes un Jenkins preparado, lee el paso para entender el flujo y deja la ejecución para más adelante.
+El `Jenkinsfile` ejecuta las pruebas dentro de la imagen oficial de Playwright, por lo que Jenkins necesita Docker y el complemento **Docker Pipeline**. Si no tienes un Jenkins, el laboratorio incluye uno local en `infra/jenkins/` que se ejecuta con Docker Desktop.
 
-1. Sube primero el laboratorio a GitHub siguiendo el Paso 13.
-2. En Jenkins, pulsa **New Item**.
-3. Escribe un nombre, por ejemplo, `laboratorio-playwright-avanzado`.
+**Cómo funciona:** Jenkins descarga el repositorio desde GitHub, no desde tu carpeta local. Por eso cada cambio debe estar subido (Paso 13) antes de lanzarlo, y los informes se quedan en Jenkins: no aparecen en tu carpeta `playwright-report`.
+
+### 14.1 Levantar Jenkins en local
+
+1. Abre Docker Desktop y espera a que indique que el motor está en marcha.
+2. Desde la carpeta del laboratorio, ejecuta:
+
+```powershell
+docker volume create jenkins_home
+docker compose -f infra/jenkins/compose.yaml up -d --build
+```
+
+3. Abre `http://127.0.0.1:8080` en el navegador.
+
+**Qué hace:** construye una imagen de Jenkins con el cliente de Docker y los complementos `docker-workflow` y `git`. El volumen `jenkins_home` conserva usuarios, trabajos y ejecuciones aunque borres el contenedor. Jenkins solo escucha en `127.0.0.1`, así que no es accesible desde otros equipos.
+
+Para pararlo usa `docker compose -f infra/jenkins/compose.yaml stop` y para volver a arrancarlo, `docker compose -f infra/jenkins/compose.yaml start`.
+
+### 14.2 Desbloquear Jenkins la primera vez
+
+1. La pantalla **Unlock Jenkins** pide una contraseña inicial. Obtenla con:
+
+```powershell
+docker exec jenkins-playwright cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+   Si usas Git Bash en lugar de PowerShell, escribe `//var/...` con doble barra: Git Bash convierte `/var` en una ruta de Windows y el comando falla con `No such file or directory`. Jenkins borra este fichero al terminar el asistente, así que solo existe la primera vez.
+
+2. Pega la contraseña y pulsa **Continue**.
+3. Elige **Install suggested plugins** y espera a que termine.
+4. Crea tu usuario administrador y guarda la contraseña.
+5. Deja la URL `http://127.0.0.1:8080/` y pulsa **Save and Finish** y después **Start using Jenkins**.
+
+### 14.3 Crear el trabajo
+
+1. Sube primero el laboratorio a GitHub siguiendo el Paso 13. El repositorio debe ser **público**; si es privado, Jenkins necesita una credencial (ver 14.6).
+2. Pulsa **New Item** (en algunas versiones aparece como **New Task** o **Create a job**).
+3. Escribe el nombre `laboratorio-playwright-avanzado`.
 4. Elige el tipo **Pipeline** y pulsa **OK**.
-5. En la sección **Pipeline**, elige **Pipeline script from SCM**.
-6. Selecciona **Git**, pega la URL del repositorio y deja como rama `main`.
-7. En **Script Path**, escribe `Jenkinsfile`.
-8. Pulsa **Save**.
-9. Ejecuta una primera vez **Build Now**. Jenkins detectará los parámetros disponibles.
-10. Después pulsa **Build with Parameters**.
-11. Elige `completa`, `smoke` o `regression` en `SUITE` y decide si ejecutas `EJECUTAR_RETRY_DEMO`.
-12. Pulsa **Build** y abre la ejecución creada.
-13. Revisa las etapas **Instalar** y **Validar**. Al finalizar, consulta los artefactos archivados.
+5. En la sección **Pipeline**, cambia **Definition** a **Pipeline script from SCM**.
+6. En **SCM** selecciona **Git** y pega la URL del repositorio.
+7. En **Branch Specifier** Jenkins propone `*/master`. Cámbialo a `*/main`: es la rama de este repositorio.
+8. Comprueba que **Script Path** contiene `Jenkinsfile`.
+9. Pulsa **Save**.
+
+### 14.4 Ejecutar el pipeline
+
+1. Pulsa **Build Now** una sola vez. Esta primera ejecución lee el `Jenkinsfile` y descarga la imagen de Playwright (unos 2 GB), por lo que tarda más.
+2. Recarga la página: el botón pasa a llamarse **Build with Parameters**.
+3. Pulsa **Build with Parameters**.
+4. Elige `completa`, `smoke` o `regression` en `SUITE` y decide si ejecutas `EJECUTAR_RETRY_DEMO`.
+5. Pulsa **Build** y abre la ejecución creada en la lista **Builds**.
+6. Pulsa **Pipeline Overview** para ver las etapas **Instalar** y **Validar** y **Console Output** para leer el registro completo.
 
 El bloque `cron('H 2 * * 1-5')` programa una ejecución de lunes a viernes, en una hora nocturna distribuida por Jenkins. Si solo quieres ejecuciones manuales, elimina el bloque `triggers` antes de crear el trabajo.
 
-**Esperamos ver:** el pipeline seleccionado termina correctamente y Jenkins archiva `playwright-report` y `test-results`.
+**Esperamos ver:** el pipeline seleccionado termina en verde con `Finished: SUCCESS` y Jenkins archiva `playwright-report` y `test-results`.
 
-Para consultar los resultados sin descargar nada, abre la ejecución y pulsa **Test Result**: Jenkins lee `test-results/junit.xml` y muestra cada prueba con su estado, duración y error. En la página del trabajo aparece además la gráfica **Test Result Trend**. El informe HTML de Playwright, en cambio, se ve en negro dentro de Jenkins porque su política de seguridad (CSP) bloquea el JavaScript: descarga `artifact/*zip*/archive.zip`, descomprímelo y abre `playwright-report/index.html`.
+### 14.5 Consultar los resultados
+
+- **Sin descargar nada:** en la ejecución, pulsa **Test Result**. Jenkins lee `test-results/junit.xml` y muestra cada prueba con su estado, duración y error. Tras dos o más ejecuciones, la página del trabajo muestra la gráfica **Test Result Trend**.
+- **Informe HTML completo (trazas, capturas, vídeos):** si lo abres en Jenkins con **view** se ve en negro, porque la política de seguridad de Jenkins (CSP) bloquea el JavaScript del informe. Descarga todos los artefactos en un ZIP desde `http://127.0.0.1:8080/job/laboratorio-playwright-avanzado/<número>/artifact/*zip*/archive.zip`, descomprímelo y abre `playwright-report/index.html` con doble clic.
+
+### 14.6 Problemas frecuentes
+
+| Mensaje en **Console Output** | Causa | Solución |
+| --- | --- | --- |
+| `Authentication failed` / `Password authentication is not supported` | El repositorio es privado y el trabajo no tiene credencial. | Hazlo público o crea en GitHub un *fine-grained token* con permiso **Contents: Read-only** y añádelo en **Credentials** como **Username with password** (usuario de GitHub y el token como contraseña). Nunca pegues el token en el repositorio. |
+| `couldn't find remote ref refs/heads/master` o `Couldn't find any revision to build` | El **Branch Specifier** sigue en `*/master`. | En **Configure**, cámbialo a `*/main`. |
+| `docker: not found` | El Jenkins usado no tiene el cliente de Docker. | Usa el de `infra/jenkins/` o instala el cliente de Docker en el agente. |
+| No aparece **Build with Parameters** | Jenkins todavía no ha leído el `Jenkinsfile`. | Lanza una vez **Build Now** y recarga la página. |
 
 ## Paso 15 Validación final
 

@@ -1,0 +1,25 @@
+# Entorno local de Jenkins para el laboratorio. No expone Jenkins fuera del equipo.
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laboratorio-jenkins-playwright:local
+    container_name: jenkins-playwright
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:50000:50000"
+    volumes:
+      # Conserva usuarios, configuración y trabajos existentes.
+      - jenkins_home:/var/jenkins_home
+      # Permite que el agente del pipeline cree la imagen de Playwright.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # El socket de Docker Desktop pertenece al grupo 0 dentro del contenedor.
+    group_add:
+      - "0"
+
+volumes:
+  jenkins_home:
+    external: true
+    name: jenkins_home
