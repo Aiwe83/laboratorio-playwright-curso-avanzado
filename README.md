@@ -417,7 +417,7 @@ El bloque `cron('H 2 * * 1-5')` programa una ejecución de lunes a viernes, en u
 
 ### 14.5 Consultar los resultados
 
-- **Sin descargar nada:** en la ejecución, pulsa **Test Result**. Jenkins lee `test-results/junit.xml` y muestra cada prueba con su estado, duración y error. Tras dos o más ejecuciones, la página del trabajo muestra la gráfica **Test Result Trend**.
+- **Sin descargar nada:** en la ejecución, pulsa **Test Result** en el menú izquierdo; desde la página del trabajo, pulsa **Latest Test Result** junto al icono ☑. Jenkins lee `test-results/junit.xml` y muestra cada prueba con su estado, duración y error. Tras dos o más ejecuciones, la página del trabajo muestra la gráfica **Test Result Trend**.
 - **Informe HTML completo (trazas, capturas, vídeos):** si lo abres en Jenkins con **view** se ve en negro, porque la política de seguridad de Jenkins (CSP) bloquea el JavaScript del informe. Descarga todos los artefactos en un ZIP desde `http://127.0.0.1:8080/job/laboratorio-playwright-avanzado/<número>/artifact/*zip*/archive.zip`, descomprímelo y abre `playwright-report/index.html` con doble clic.
 
 ### 14.6 Problemas frecuentes
