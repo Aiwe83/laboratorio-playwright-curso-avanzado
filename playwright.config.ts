@@ -36,6 +36,9 @@ export default defineConfig({
     // informe navegable y no intenta abrirlo automáticamente en CI.
     ['list'],
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    // `junit` genera un XML estándar que Jenkins muestra en la pestaña
+    // «Test Result» sin descargar nada (el informe HTML lo bloquea su CSP).
+    ['junit', { outputFile: 'test-results/junit.xml' }],
   ],
   use: {
     // Las rutas relativas como `page.goto('/')` se resuelven contra esta URL.

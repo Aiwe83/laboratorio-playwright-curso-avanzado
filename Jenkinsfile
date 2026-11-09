@@ -78,6 +78,9 @@ pipeline {
       // `always` conserva las evidencias aunque falle una etapa. `allowEmptyArchive`
       // evita que la publicación oculte el resultado original si no hubo artefactos.
       archiveArtifacts artifacts: 'playwright-report/**/*,test-results/**/*', allowEmptyArchive: true
+      // Publica el XML de Playwright: Jenkins muestra «Test Result» y la tendencia
+      // entre ejecuciones. `allowEmptyResults` evita un segundo error si `npm ci` falló.
+      junit testResults: 'test-results/junit.xml', allowEmptyResults: true
     }
   }
 }

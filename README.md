@@ -374,6 +374,8 @@ El bloque `cron('H 2 * * 1-5')` programa una ejecución de lunes a viernes, en u
 
 **Esperamos ver:** el pipeline seleccionado termina correctamente y Jenkins archiva `playwright-report` y `test-results`.
 
+Para consultar los resultados sin descargar nada, abre la ejecución y pulsa **Test Result**: Jenkins lee `test-results/junit.xml` y muestra cada prueba con su estado, duración y error. En la página del trabajo aparece además la gráfica **Test Result Trend**. El informe HTML de Playwright, en cambio, se ve en negro dentro de Jenkins porque su política de seguridad (CSP) bloquea el JavaScript: descarga `artifact/*zip*/archive.zip`, descomprímelo y abre `playwright-report/index.html`.
+
 ## Paso 15 Validación final
 
 1. Asegúrate de estar en la carpeta del laboratorio.
